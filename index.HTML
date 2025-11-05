@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Orçamentos Elétricos (Google Sheets)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <style>
+        /* Fonte Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        /* Esconde barras de rolagem em navegadores webkit */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        /* Esconde barras de rolagem em outros navegadores */
+        .no-scrollbar {
+            -ms-overflow-style: none; /* IE e Edge */
+            scrollbar-width: none; /* Firefox */
+        }
+        /* Animação para o Toast */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-20px); }
+        }
+        .toast-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        .toast-out {
+            animation: fadeOut 0.3s ease-in forwards;
+        }
+
+        /* Estilo da barra de navegação ativa */
+        .nav-link.active {
+            font-weight: 600;
+            color: #4f46e5; /* indigo-600 */
+            border-bottom: 2px solid #4f46e5;
+        }
+        @media (min-width: 640px) {
+            .nav-link.active {
+                border-bottom: none;
+                border-left: 3px solid #4f46e5;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <div id="toast" class="fixed top-4 right-4 z-50 p-4 rounded-lg shadow-xl text-white hidden transition-all duration-300" role="alert">
+        <div class="flex items-center">
+            <span id="toast-message"></span>
+            <button onclick="document.getElementById('toast').classList.add('hidden');" class="ml-4 -mr-1 p-1 rounded-full hover:bg-white/20 transition">
+                <ion-icon name="close-outline" class="w-5 h-5"></ion-icon>
+            </button>
+        </div>
+    </div>
+
+    <div class="flex flex-1">
+        
+        <aside id="sidebar-desktop" class="hidden sm:flex flex-col w-64 bg-white shadow-lg p-4 sticky top-0 h-screen">
+            <div class="text-2xl font-bold text-indigo-600 mb-8 p-2">Orçamentos Pro</div>
+            <nav class="flex flex-col space-y-2">
+                <a href="#" data-page="home" class="nav-link flex items-center p-3 text-gray-700 hover:bg-indigo-50 rounded-lg transition duration-150">
+                    <ion-icon name="home-outline" class="w-5 h-5 mr-3"></ion-icon> Início
+                </a>
+                <a href="#" data-page="orcamentos" class="nav-link flex items-center p-3 text-gray-700 hover:bg-indigo-50 rounded-lg transition duration-150">
+                    <ion-icon name="document-text-outline" class="w-5 h-5 mr-3"></ion-icon> Orçamentos
+                </a>
+                <a href="#" data-page="clientes" class="nav-link flex items-center p-3 text-gray-700 hover:bg-indigo-50 rounded-lg transition duration-150">
+                    <ion-icon name="people-outline" class="w-5 h-5 mr-3"></ion-icon> Clientes
+                </a>
+                <a href="#" data-page="produtos-servicos" class="nav-link flex items-center p-3 text-gray-700 hover:bg-indigo-50 rounded-lg transition duration-150">
+                    <ion-icon name="pricetags-outline" class="w-5 h-5 mr-3"></ion-icon> Produtos/Serviços
+                </a>
+            </nav>
+            <div class="mt-auto p-2 text-sm text-gray-500">
+                <p>Status:</p>
+                <p id="user-id-display" class="font-mono break-all text-green-600 font-semibold">Sheets Conectado</p>
+            </div>
+        </aside>
+
+        <main class="flex-1 p-4 sm:p-8 overflow-y-auto">
+
+            <header class="sm:hidden flex justify-between items-center mb-6 border-b pb-3 sticky top-0 bg-f7f9fb z-10">
+                <div class="text-xl font-bold text-indigo-600">Orçamentos Pro</div>
+                <button id="mobile-menu-button" class="p-2 rounded-lg text-indigo-600 hover:bg-indigo-100 transition">
+                    <ion-icon name="menu-outline" class="w-6 h-6"></ion-icon>
+                </button>
+            </header>
+
+            <div id="mobile-menu" class="fixed inset-0 bg-white z-20 transform -translate-x-full transition-transform duration-300 sm:hidden">
+                <div class="p-4 flex flex-col h-full">
+                    <div class="flex justify-between items-center mb-8">
+                        <div class="text-2xl font-bold text-indigo-600">Menu</div>
+                        <button id="close-mobile-menu" class="p-2 rounded-lg text-indigo-600 hover:bg-indigo-100 transition">
+                            <ion-icon name="close-outline" class="w-6 h-6"></ion-icon>
+                        </button>
+                    </div>
+                    <nav class="flex flex-col space-y-4">
+                        <a href="#" data-page="home" class="nav-link mobile-nav-link text-lg p-3 text-gray-700 hover:bg-indigo-50 rounded-lg transition duration-150">
+                            <ion-icon name="home-outline" class="w-6 h-6 mr-3"></ion-icon> Início
+                        </a>
+                        <a href="#" data-page="orcamentos" class="nav-link mobile-nav-link text-lg p-3 text-gray-700 hover:bg-indigo-50 rounded-lg transition duration-150">
+                            <ion-icon name="document-text-outline" class="w-6 h-6 mr-3"></ion-icon> Orçamentos
+                        </a>
+                        <a href="#" data-page="clientes" class="nav-link mobile-nav-link text-lg p-3 text-gray-700 hover:bg-indigo-50 rounded-lg transition duration-150">
+                            <ion-icon name="people-outline" class="w-6 h-6 mr-3"></ion-icon> Clientes
+                        </a>
+                        <a href="#" data-page="produtos-servicos" class="nav-link mobile-nav-link text-lg p-3 text-gray-700 hover:bg-indigo-50 rounded-lg transition duration-150">
+                            <ion-icon name="pricetags-outline" class="w-6 h-6 mr-3"></ion-icon> Produtos/Serviços
+                        </a>
+                    </nav>
+                </div>
+            </div>
+
+            <div id="loading-overlay" class="fixed inset-0 bg-white bg-opacity-80 z-40 flex items-center justify-center">
+                <div class="text-center">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                    <p class="text-indigo-600 font-medium">Conectando ao Google Sheets...</p>
+                </div>
+            </div>
+
+            <section id="home-page" data-page="home" class="page-content active space-y-8">
+                
+                <h1 class="text-3xl font-bold text-gray-800">Visão Geral (Dashboard)</h1>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow-lg flex items-center space-x-4">
+                        <div class="p-3 rounded-full bg-indigo-100 text-indigo-600">
+                            <ion-icon name="document-text-outline" class="w-8 h-8"></ion-icon>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Total de Orçamentos</p>
+                            <p id="stat-total-orcamentos" class="text-3xl font-bold text-gray-900">0</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-lg flex items-center space-x-4">
+                        <div class="p-3 rounded-full bg-green-100 text-green-600">
+                            <ion-icon name="cash-outline" class="w-8 h-8"></ion-icon>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Valor Total Orçado</p>
+                            <p id="stat-valor-total" class="text-3xl font-bold text-gray-900">R$ 0,00</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-lg flex items-center space-x-4">
+                        <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                            <ion-icon name="people-outline" class="w-8 h-8"></ion-icon>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Total de Clientes</p>
+                            <p id="stat-total-clientes" class="text-3xl font-bold text-gray-900">0</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-lg flex items-center space-x-4">
+                        <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                            <ion-icon name="pricetags-outline" class="w-8 h-8"></ion-icon>
+                        </div>
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Produtos/Serviços</p>
+                            <p id="stat-total-produtos" class="text-3xl font-bold text-gray-900">0</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    
+                    <div class="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-4">Orçamentos Recentes</h2>
+                        <div id="recentes-orcamentos-list" class="space-y-4">
+                            <p id="recentes-placeholder" class="text-gray-500">Carregando...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="lg:col-span-1 space-y-6">
+                        <div class="bg-indigo-50 p-6 rounded-lg shadow-sm hover:shadow-md transition">
+                            <h2 class="text-xl font-semibold text-indigo-700 mb-2">Novo Orçamento</h2>
+                            <p class="text-indigo-600">Crie e salve rapidamente orçamentos detalhados.</p>
+                            <a href="#" data-page="orcamentos" class="nav-link text-indigo-500 font-medium mt-3 inline-flex items-center hover:text-indigo-700 transition">
+                                Acessar <ion-icon name="arrow-forward-outline" class="ml-1"></ion-icon>
+                            </a>
+                        </div>
+                        <div class="bg-indigo-50 p-6 rounded-lg shadow-sm hover:shadow-md transition">
+                            <h2 class="text-xl font-semibold text-indigo-700 mb-2">Gerenciar Clientes</h2>
+                            <p class="text-indigo-600">Mantenha o cadastro dos seus clientes atualizado.</p>
+                            <a href="#" data-page="clientes" class="nav-link text-indigo-500 font-medium mt-3 inline-flex items-center hover:text-indigo-700 transition">
+                                Acessar <ion-icon name="arrow-forward-outline" class="ml-1"></ion-icon>
+                            </a>
+                        </div>
+                        <div class="bg-indigo-50 p-6 rounded-lg shadow-sm hover:shadow-md transition">
+                            <h2 class="text-xl font-semibold text-indigo-700 mb-2">Produtos e Serviços</h2>
+                            <p class="text-indigo-600">Liste todos os itens que você oferece.</p>
+                            <a href="#" data-page="produtos-servicos" class="nav-link text-indigo-500 font-medium mt-3 inline-flex items-center hover:text-indigo-700 transition">
+                                Acessar <ion-icon name="arrow-forward-outline" class="ml-1"></ion-icon>
+                            </a>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+            <section id="orcamentos-page" data-page="orcamentos" class="page-content hidden">
+                <h1 class="text-3xl font-bold text-gray-800 mb-6">Orçamentos</h1>
+
+                <div class="bg-white p-6 rounded-lg shadow-lg mb-8">
+                    <h2 class="text-2xl font-semibold text-indigo-600 mb-4">Criar Novo Orçamento</h2>
+                    <form id="orcamento-form">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label for="cliente-nome" class="block text-sm font-medium text-gray-700">Nome do Cliente</label>
+                                <input type="text" id="cliente-nome" name="cliente-nome" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
+                            </div>
+                            <div>
+                                <label for="data-emissao" class="block text-sm font-medium text-gray-700">Data de Emissão</label>
+                                <input type="date" id="data-emissao" name="data-emissao" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4 border p-4 rounded-lg bg-gray-50">
+                            <h3 class="text-lg font-medium text-gray-700 mb-3">Itens (Produtos/Serviços)</h3>
+                            <div id="orcamento-itens" class="space-y-3">
+                                </div>
+                            <button type="button" id="adicionar-item" class="mt-4 text-sm bg-indigo-500 text-white p-2 rounded-lg hover:bg-indigo-600 transition flex items-center">
+                                <ion-icon name="add-circle-outline" class="w-5 h-5 mr-1"></ion-icon> Adicionar Item
+                            </button>
+                        </div>
+                        
+                        <div class="flex justify-end">
+                            <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition shadow-md">
+                                Salvar Orçamento
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-2xl font-semibold text-gray-700 mb-4">Orçamentos Salvos (Google Sheets)</h2>
+                    <p class="text-sm text-gray-500 mb-4">Os dados são carregados do Google Sheets ao iniciar a página e ao salvar um novo item. A exclusão de dados deve ser feita diretamente na planilha.</p>
+                    <div id="orcamentos-list" class="space-y-4">
+                        <p class="text-gray-500" id="orcamentos-placeholder">Carregando orçamentos...</p>
+                        </div>
+                </div>
+            </section>
+
+            <section id="clientes-page" data-page="clientes" class="page-content hidden">
+                <h1 class="text-3xl font-bold text-gray-800 mb-6">Clientes</h1>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-2xl font-semibold text-indigo-600 mb-4">Gerenciar Clientes</h2>
+                    
+                    <form id="cliente-form">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <input type="text" name="nome" placeholder="Nome do Cliente" required class="p-2 border rounded-md">
+                            <input type="email" name="email" placeholder="Email" class="p-2 border rounded-md">
+                            <input type="tel" name="telefone" placeholder="Telefone" class="p-2 border rounded-md">
+                        </div>
+                        <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition">Adicionar Cliente</button>
+                    </form>
+                    
+                    <div class="mt-6">
+                        <h3 class="text-xl font-semibold mb-3">Lista de Clientes (Google Sheets)</h3>
+                        <ul id="clientes-list" class="space-y-2">
+                             <p class="text-gray-500" id="clientes-placeholder">Carregando clientes...</p>
+                            </ul>
+                    </div>
+                </div>
+            </section>
+
+            <section id="produtos-servicos-page" data-page="produtos-servicos" class="page-content hidden">
+                <h1 class="text-3xl font-bold text-gray-800 mb-6">Produtos e Serviços</h1>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <h2 class="text-2xl font-semibold text-indigo-600 mb-4">Gerenciar Produtos/Serviços</h2>
+                    
+                    <form id="produto-servico-form">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                            <input type="text" name="nome" placeholder="Nome do Item" required class="p-2 border rounded-md col-span-2">
+                            <input type="number" name="preco" placeholder="Preço Unitário (R$)" required step="0.01" class="p-2 border rounded-md">
+                            <input type="text" name="unidade" placeholder="Unidade (Ex: UN, M, H)" class="p-2 border rounded-md">
+                        </div>
+                        <button type="submit" class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition">Adicionar Item</button>
+                    </form>
+
+                    <div class="mt-6">
+                        <h3 class="text-xl font-semibold mb-3">Lista de Itens (Google Sheets)</h3>
+                        <ul id="produtos-servicos-list" class="space-y-2">
+                            <p class="text-gray-500" id="produtos-servicos-placeholder">Carregando itens...</p>
+                            </ul>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script type="module">
+        // ============================================== CONFIGURAÇÃO GOOGLE SHEETS ==============================================
+
+        // URL do Google Apps Script (Web App URL)
+        const GOOGLE_SHEETS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwoumVhnDIxuowKwX1-0c2A1aAfY31yhNvlEBS-1Dqqb6GepTqi4tqxukBof6yAoqpy/exec';
+
+        // Variáveis de Estado (Armazenam os dados do Sheets localmente)
+        let orcamentosList = [];
+        let clientesList = [];
+        let produtosServicosList = [];
+
+        const COLLECTIONS = {
+            ORCAMENTOS: 'orcamentos',
+            CLIENTES: 'clientes',
+            PRODUTOS_SERVICOS: 'produtos_servicos'
+        };
+
+        // ============================================== LÓGICA DO TOAST E NAVEGAÇÃO ==============================================
+
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toast-message');
+
+        /**
+         * Exibe um toast de notificação.
+         * @param {string} message A mensagem a ser exibida.
+         * @param {'success'|'error'|'info'|'warning'} type O tipo de toast.
+         * @param {boolean} autoClose Se o toast deve fechar automaticamente após 3s.
+         */
+        function showToast(message, type = 'info', autoClose = true) {
+            toastMessage.textContent = message;
+            toast.className = 'fixed top-4 right-4 z-50 p-4 rounded-lg shadow-xl text-white hidden transition-all duration-300';
+            toast.classList.remove('bg-green-500', 'bg-red-500', 'bg-blue-500', 'bg-yellow-500');
+
+            switch (type) {
+                case 'success':
+                    toast.classList.add('bg-green-500');
+                    break;
+                case 'error':
+                    toast.classList.add('bg-red-500');
+                    break;
+                case 'info':
+                    toast.classList.add('bg-blue-500');
+                    break;
+                case 'warning':
+                    toast.classList.add('bg-yellow-500');
+                    break;
+                default:
+                    toast.classList.add('bg-green-500');
+            }
+
+            toast.classList.remove('hidden', 'toast-out');
+            toast.classList.add('toast-in');
+            
+            if (autoClose) {
+                setTimeout(() => {
+                    toast.classList.add('toast-out');
+                    setTimeout(() => toast.classList.add('hidden'), 300);
+                }, 3000);
+            }
+        }
+        
+        function setupNavigation() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            const pages = document.querySelectorAll('.page-content');
+            
+            // Função para mudar a página
+            const navigate = (pageId) => {
+                pages.forEach(page => {
+                    page.classList.add('hidden');
+                    page.classList.remove('active');
+                });
+                document.getElementById(`${pageId}-page`).classList.remove('hidden');
+                document.getElementById(`${pageId}-page`).classList.add('active');
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.dataset.page === pageId) {
+                        link.classList.add('active');
+                    }
+                });
+            };
+
+            // Listener para os cliques
+            navLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const pageId = link.dataset.page;
+                    navigate(pageId);
+                    
+                    // Fechar menu mobile se for um link mobile
+                    if (link.classList.contains('mobile-nav-link')) {
+                        document.getElementById('mobile-menu').classList.add('-translate-x-full');
+                    }
+                });
+            });
+
+            // Inicializar a página
+            navigate('home');
+        }
+
+        function setupMobileMenu() {
+            const menuButton = document.getElementById('mobile-menu-button');
+            const closeButton = document.getElementById('close-mobile-menu');
+            const mobileMenu = document.getElementById('mobile-menu');
+
+            menuButton.addEventListener('click', () => {
+                mobileMenu.classList.remove('-translate-x-full');
+            });
+
+            closeButton.addEventListener('click', () => {
+                mobileMenu.classList.add('-translate-x-full');
+            });
+        }
+        
+        // ============================================== FUNÇÕES DE RENDERIZAÇÃO DE UI ==============================================
+
+        /**
+         * Renderiza a lista de orçamentos no DOM.
+         */
+        function renderizarOrcamentos() {
+            const listContainer = document.getElementById('orcamentos-list');
+            const placeholder = document.getElementById('orcamentos-placeholder');
+            
+            if (orcamentosList.length === 0) {
+                placeholder.textContent = "Nenhum orçamento encontrado. Crie um novo acima!";
+                placeholder.classList.remove('hidden');
+                listContainer.innerHTML = '';
+                listContainer.appendChild(placeholder);
+                return;
+            }
+
+            placeholder.classList.add('hidden');
+            listContainer.innerHTML = '';
+
+            // Renderiza cada orçamento
+            orcamentosList.forEach(orcamento => {
+                // Tenta calcular o total, tratando o caso em que 'itens' pode não ter sido parseado corretamente.
+                let total = 0;
+                if (orcamento.itens && Array.isArray(orcamento.itens)) {
+                    total = orcamento.itens.reduce((sum, item) => 
+                        sum + (parseFloat(item.quantidade || 0) * parseFloat(item.preco || 0)), 0
+                    );
+                }
+                const numItens = (orcamento.itens && Array.isArray(orcamento.itens)) ? orcamento.itens.length : 0;
+                
+                // Formata o Timestamp/Data
+                const dataFormatada = orcamento.Timestamp ? new Date(orcamento.Timestamp).toLocaleDateString('pt-BR') : orcamento.dataEmissao;
+
+                const orcamentoCard = document.createElement('div');
+                orcamentoCard.className = 'p-4 border border-gray-200 rounded-lg shadow-sm bg-white hover:shadow-md transition duration-200';
+                orcamentoCard.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-lg font-bold text-indigo-700">${orcamento.clienteNome || 'Cliente Não Informado'}</h3>
+                        <span class="text-sm font-semibold text-gray-600">${dataFormatada}</span>
+                    </div>
+                    <p class="text-xl font-extrabold text-green-600 mb-2">Total: R$ ${total.toFixed(2).replace('.', ',')}</p>
+                    <p class="text-sm text-gray-500 mb-4">Itens: ${numItens}</p>
+                    <div class="flex space-x-2">
+                        <button onclick="deletarDocumento('${COLLECTIONS.ORCAMENTOS}', '${orcamento.id}')" class="text-red-500 hover:text-red-700 transition">
+                            <ion-icon name="trash-outline" class="w-5 h-5"></ion-icon>
+                        </button>
+                        </div>
+                `;
+                listContainer.appendChild(orcamentoCard);
+            });
+        }
+
+        /**
+         * Renderiza a lista de clientes no DOM.
+         */
+        function renderizarClientes() {
+            const listContainer = document.getElementById('clientes-list');
+            const placeholder = document.getElementById('clientes-placeholder');
+
+            if (clientesList.length === 0) {
+                placeholder.textContent = "Nenhum cliente cadastrado. Use o formulário acima.";
+                placeholder.classList.remove('hidden');
+                listContainer.innerHTML = '';
+                listContainer.appendChild(placeholder);
+                return;
+            }
+            
+            placeholder.classList.add('hidden');
+            listContainer.innerHTML = '';
+
+            clientesList.forEach(cliente => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center p-3 bg-gray-50 rounded-lg border';
+                li.innerHTML = `
+                    <span>
+                        <span class="font-medium text-gray-800">${cliente.nome}</span> 
+                        <span class="text-sm text-gray-500 ml-2">${cliente.email || ''}</span>
+                    </span>
+                     <button onclick="deletarDocumento('${COLLECTIONS.CLIENTES}', '${cliente.id}')" class="text-red-500 hover:text-red-700 transition">
+                        <ion-icon name="trash-outline" class="w-5 h-5"></ion-icon>
+                    </button>
+                `;
+                listContainer.appendChild(li);
+            });
+        }
+
+        /**
+         * Renderiza a lista de produtos/serviços no DOM.
+         */
+        function renderizarProdutosServicos() {
+            const listContainer = document.getElementById('produtos-servicos-list');
+            const placeholder = document.getElementById('produtos-servicos-placeholder');
+
+            if (produtosServicosList.length === 0) {
+                placeholder.textContent = "Nenhum item cadastrado. Use o formulário acima.";
+                placeholder.classList.remove('hidden');
+                listContainer.innerHTML = '';
+                listContainer.appendChild(placeholder);
+                return;
+            }
+
+            placeholder.classList.add('hidden');
+            listContainer.innerHTML = '';
+
+            produtosServicosList.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center p-3 bg-gray-50 rounded-lg border';
+                li.innerHTML = `
+                    <div class="flex items-center">
+                         <span class="font-medium text-gray-800">${item.nome}</span> 
+                         <span class="text-sm text-gray-500 ml-2">(${item.unidade || 'UN'})</span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="font-bold text-indigo-600">R$ ${parseFloat(item.preco || 0).toFixed(2).replace('.', ',')}</span>
+                        <button onclick="deletarDocumento('${COLLECTIONS.PRODUTOS_SERVICOS}', '${item.id}')" class="text-red-500 hover:text-red-700 transition">
+                            <ion-icon name="trash-outline" class="w-5 h-5"></ion-icon>
+                        </button>
+                    </div>
+                `;
+                listContainer.appendChild(li);
+            });
+        }
+
+        /**
+         * ==============================================
+         * NOVA FUNÇÃO DO DASHBOARD
+         * ==============================================
+         * Atualiza os KPIs e a lista de orçamentos recentes na home page.
+         */
+        function atualizarDashboard() {
+            // 1. Calcular KPIs
+            const totalOrcamentos = orcamentosList.length;
+            const totalClientes = clientesList.length;
+            const totalProdutos = produtosServicosList.length;
+
+            let valorTotalOrcado = 0;
+            orcamentosList.forEach(orcamento => {
+                if (orcamento.itens && Array.isArray(orcamento.itens)) {
+                    const totalOrcamento = orcamento.itens.reduce((sum, item) => 
+                        sum + (parseFloat(item.quantidade || 0) * parseFloat(item.preco || 0)), 0
+                    );
+                    valorTotalOrcado += totalOrcamento;
+                }
+            });
+
+            // 2. Atualizar DOM dos KPIs
+            const elTotalOrcamentos = document.getElementById('stat-total-orcamentos');
+            const elValorTotal = document.getElementById('stat-valor-total');
+            const elTotalClientes = document.getElementById('stat-total-clientes');
+            const elTotalProdutos = document.getElementById('stat-total-produtos');
+
+            if (elTotalOrcamentos) elTotalOrcamentos.textContent = totalOrcamentos;
+            if (elValorTotal) elValorTotal.textContent = `R$ ${valorTotalOrcado.toFixed(2).replace('.', ',')}`;
+            if (elTotalClientes) elTotalClientes.textContent = totalClientes;
+            if (elTotalProdutos) elTotalProdutos.textContent = totalProdutos;
+
+            // 3. Atualizar Lista de Orçamentos Recentes (Top 5)
+            const recentesContainer = document.getElementById('recentes-orcamentos-list');
+            const recentesPlaceholder = document.getElementById('recentes-placeholder');
+            const recentesOrcamentos = orcamentosList.slice(0, 5); // Já estão ordenados
+
+            if (recentesOrcamentos.length === 0) {
+                recentesPlaceholder.textContent = "Nenhum orçamento recente.";
+                recentesContainer.innerHTML = '';
+                recentesContainer.appendChild(recentesPlaceholder);
+                return;
+            }
+
+            recentesPlaceholder.classList.add('hidden');
+            recentesContainer.innerHTML = '';
+
+            recentesOrcamentos.forEach(orcamento => {
+                let total = 0;
+                if (orcamento.itens && Array.isArray(orcamento.itens)) {
+                    total = orcamento.itens.reduce((sum, item) => 
+                        sum + (parseFloat(item.quantidade || 0) * parseFloat(item.preco || 0)), 0
+                    );
+                }
+                const dataFormatada = orcamento.Timestamp ? new Date(orcamento.Timestamp).toLocaleDateString('pt-BR') : orcamento.dataEmissao;
+
+                const itemCard = document.createElement('div');
+                itemCard.className = 'flex justify-between items-center p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition';
+                itemCard.innerHTML = `
+                    <div>
+                        <span class="font-medium text-indigo-700">${orcamento.clienteNome || 'N/A'}</span>
+                        <span class="text-sm text-gray-500 ml-2">(${dataFormatada})</span>
+                    </div>
+                    <span class="font-bold text-green-600">R$ ${total.toFixed(2).replace('.', ',')}</span>
+                `;
+                recentesContainer.appendChild(itemCard);
+            });
+        }
+
+        // ============================================== CRUD GOOGLE SHEETS ==============================================
+
+        /**
+         * Salva um novo documento enviando POST para o Apps Script.
+         * @param {string} collectionName O nome da coleção (que é o nome da aba no Sheets).
+         * @param {Object} data Os dados do documento.
+         */
+        async function salvarDocumento(collectionName, data) {
+            
+            // Adiciona o nome da aba (collection) ao payload
+            const payload = JSON.stringify({
+                ...data,
+                collectionName: collectionName 
+            });
+
+            try {
+                const response = await fetch(GOOGLE_SHEETS_WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'cors', 
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: payload,
+                });
+
+                const result = await response.json();
+
+                if (result.result === 'success') {
+                    showToast(result.message, 'success');
+                    // Recarrega os dados após salvar
+                    await fetchDataFromSheets();
+                    return { id: 'sheet-row-mock' }; 
+                } else {
+                    showToast(`Erro ao salvar no Sheets: ${result.message}`, 'error', false);
+                    return null;
+                }
+
+            } catch (e) {
+                console.error("Erro de rede/comunicação com o Apps Script:", e);
+                showToast(`Erro de rede/comunicação com o Sheets: ${e.message}`, 'error', false);
+                return null;
+            }
+        }
+        
+        /**
+         * Notifica o usuário que a exclusão deve ser feita manualmente na planilha.
+         * @param {string} collectionName O nome da coleção.
+         * @param {string} docId O ID do documento (a linha mock).
+         */
+        async function deletarDocumento(collectionName, docId) {
+            showToast(`A exclusão de dados na aba "${collectionName}" deve ser feita manualmente na Planilha Google.`, 'warning', false);
+        }
+        
+        window.deletarDocumento = deletarDocumento; // Expõe globalmente
+
+        /**
+         * Faz a requisição GET para o Apps Script para buscar todos os dados de todas as abas.
+         */
+        async function fetchDataFromSheets() {
+            loadingOverlay.classList.remove('hidden');
+
+            const collections = [
+                { name: COLLECTIONS.ORCAMENTOS, list: 'orcamentosList', renderer: renderizarOrcamentos },
+                { name: COLLECTIONS.CLIENTES, list: 'clientesList', renderer: renderizarClientes },
+                { name: COLLECTIONS.PRODUTOS_SERVICOS, list: 'produtosServicosList', renderer: renderizarProdutosServicos }
+            ];
+
+            try {
+                for (const col of collections) {
+                    const url = `${GOOGLE_SHEETS_WEB_APP_URL}?sheetName=${col.name}`;
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        mode: 'cors',
+                    });
+
+                    const result = await response.json();
+
+                    if (result.result === 'success') {
+                        // Atualiza as variáveis globais de estado
+                        if (col.name === COLLECTIONS.ORCAMENTOS) orcamentosList = result.data;
+                        else if (col.name === COLLECTIONS.CLIENTES) clientesList = result.data;
+                        else if (col.name === COLLECTIONS.PRODUTOS_SERVICOS) produtosServicosList = result.data;
+
+                        // Ordena Orçamentos por Timestamp (mais recente primeiro)
+                        if (col.name === COLLECTIONS.ORCAMENTOS) {
+                             orcamentosList.sort((a, b) => {
+                                const dateA = new Date(a.Timestamp);
+                                const dateB = new Date(b.Timestamp);
+                                return dateB - dateA; 
+                            });
+                        }
+                        
+                        col.renderer(); // Renderiza a lista no DOM
+                    } else {
+                        showToast(`Erro ao carregar dados de ${col.name}: ${result.message}`, 'error', false);
+                    }
+                }
+                
+                // ==============================================================
+                // ATUALIZAÇÃO: Chamar a função do dashboard após carregar tudo
+                // ==============================================================
+                atualizarDashboard();
+
+                loadingOverlay.classList.add('hidden');
+                showToast('Dados carregados do Google Sheets!', 'info');
+
+            } catch (e) {
+                console.error("Erro de rede ao buscar dados:", e);
+                loadingOverlay.innerHTML = `<div class="text-center p-6 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                    <h2 class="font-bold text-lg mb-2">Erro Crítico de Conexão</h2>
+                    <p>Falha ao buscar dados do Google Sheets. Verifique a URL do App Web e as permissões.</p>
+                    <p class="mt-2 text-sm font-mono break-all">${e.message}</p>
+                </div>`;
+                showToast('Erro Crítico: Não foi possível carregar dados do Google Sheets.', 'error', false);
+            }
+        }
+
+
+        // ============================================== LÓGICA DO FORMULÁRIO DE ORÇAMENTO ==============================================
+
+        function createItemRow(initialData = {}) {
+            const itemContainer = document.createElement('div');
+            itemContainer.className = 'flex flex-col md:flex-row gap-2 border p-3 rounded-md bg-white shadow-sm';
+            itemContainer.innerHTML = `
+                <input type="text" name="item-nome" placeholder="Nome do Item/Serviço" value="${initialData.nome || ''}" required class="p-2 border rounded-md flex-1">
+                <input type="number" name="item-preco" placeholder="Preço Unitário (R$)" value="${initialData.preco || ''}" required step="0.01" class="p-2 border rounded-md w-full md:w-32">
+                <input type="number" name="item-quantidade" placeholder="Qtd" value="${initialData.quantidade || '1'}" required min="1" class="p-2 border rounded-md w-full md:w-20">
+                <button type="button" class="remove-item bg-red-500 text-white p-2 rounded-md hover:bg-red-600 transition w-full md:w-10 flex items-center justify-center">
+                    <ion-icon name="close-outline" class="w-5 h-5"></ion-icon>
+                </button>
+            `;
+
+            itemContainer.querySelector('.remove-item').addEventListener('click', () => {
+                itemContainer.remove();
+            });
+
+            return itemContainer;
+        }
+
+        function setupOrcamentoListeners() {
+            const itensContainer = document.getElementById('orcamento-itens');
+            const adicionarItemButton = document.getElementById('adicionar-item');
+            const orcamentoForm = document.getElementById('orcamento-form');
+
+            // Adiciona o primeiro item na inicialização
+            itensContainer.appendChild(createItemRow());
+
+            // Listener para adicionar mais itens
+            adicionarItemButton.addEventListener('click', () => {
+                itensContainer.appendChild(createItemRow());
+            });
+
+            // Listener para submissão do formulário de orçamento
+            orcamentoForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+
+                const form = e.target;
+                const clienteNome = form.elements['cliente-nome'].value;
+                const dataEmissao = form.elements['data-emissao'].value;
+
+                const itemElements = itensContainer.querySelectorAll('.flex.flex-col.md\\:flex-row');
+                
+                const itens = Array.from(itemElements).map(itemRow => ({
+                    nome: itemRow.querySelector('input[name="item-nome"]').value,
+                    preco: itemRow.querySelector('input[name="item-preco"]').value,
+                    quantidade: itemRow.querySelector('input[name="item-quantidade"]').value
+                }));
+
+                // Validação mínima
+                if (itens.some(item => !item.nome || !item.preco || !item.quantidade)) {
+                    showToast('Por favor, preencha todos os campos dos itens do orçamento.', 'warning');
+                    return;
+                }
+
+                const orcamentoData = {
+                    clienteNome,
+                    dataEmissao,
+                    itens, // O Apps Script converterá isso para JSON string
+                };
+
+                // Salva no Sheets
+                const docRef = await salvarDocumento(COLLECTIONS.ORCAMENTOS, orcamentoData);
+
+                if (docRef) {
+                    form.reset();
+                    // Limpa e recria um item vazio
+                    itensContainer.innerHTML = '';
+                    itensContainer.appendChild(createItemRow());
+                }
+            });
+        }
+        
+        // ============================================== LÓGICA DE OUTROS FORMULÁRIOS ==============================================
+        
+        // Simplesmente salva os dados no Sheets e limpa o formulário
+        function setupFormListeners() {
+            const clienteForm = document.getElementById('cliente-form');
+            clienteForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const data = Object.fromEntries(formData.entries());
+                
+                const docRef = await salvarDocumento(COLLECTIONS.CLIENTES, data);
+                if (docRef) { e.target.reset(); }
+            });
+
+            const produtoServicoForm = document.getElementById('produto-servico-form');
+            produtoServicoForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const data = Object.fromEntries(formData.entries());
+
+                // Converte preço para número antes de salvar
+                data.preco = parseFloat(data.preco) || 0;
+                
+                const docRef = await salvarDocumento(COLLECTIONS.PRODUTOS_SERVICOS, data);
+                if (docRef) { e.target.reset(); }
+            });
+        }
+
+        // ============================================== INICIALIZAÇÃO ==============================================
+
+        async function initializeApp() {
+            
+            // Configurar UI antes de carregar dados
+            setupNavigation();
+            setupMobileMenu();
+            setupOrcamentoListeners();
+            setupFormListeners();
+
+            // Carregar dados do Sheets
+            await fetchDataFromSheets();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeApp();
+        });
+    </script>
+</body>
+</html>
